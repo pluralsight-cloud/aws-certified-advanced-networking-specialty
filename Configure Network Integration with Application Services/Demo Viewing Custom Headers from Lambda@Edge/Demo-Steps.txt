@@ -1,0 +1,11 @@
+1. Deploy CFN Template to us-east-1
+2. Verify resources exist after completion.
+3. Upload index.html file, JPG files, and PNG file to your Amazon S3 bucket.
+4. Verify index.html is reachable via distribution after changes are deployed.
+5. Edit the default cache behavior to leverage the default Lambda function Version 1 for the Viewer Response
+6. Create a new cache behavior for "/*.jpg" files and leverage the custom behavior function Version 1 for the Viewer Response
+7. Test index.html and view dev tools
+8. Test first.jpg and second.JPG - View headers and show the cache miss header value
+9. retest one of the them and view header again, and cache hit
+10. Test the third.png file and show the default behavior expected
+11. Cleaning up requires removing the edge functions from the behaviors first. then delete stack. MIGHT FAIL STILL DUE TO REPLICATED FUNCTIONS.

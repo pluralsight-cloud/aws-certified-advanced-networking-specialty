@@ -1,0 +1,19 @@
+{
+    "Sid": "AllowCloudFrontServicePrincipalSSE-KMS",
+    "Effect": "Allow",
+    "Principal": {
+        "AWS": "arn:aws:iam::<AWS account ID>:root",
+        "Service": "cloudfront.amazonaws.com"
+    },
+    "Action": [
+        "kms:Decrypt",
+        "kms:Encrypt",
+        "kms:GenerateDataKey*"
+    ],
+    "Resource": "*",
+    "Condition": {
+        "StringEquals": {
+            "AWS:SourceArn": "arn:aws:cloudfront::<AWS account ID>:distribution/<CloudFront distribution ID>"
+        }
+    }
+}

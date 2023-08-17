@@ -1,0 +1,208 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Deploys our CloudFront Lambda@Edge functions for customizing headers.
+Resources:
+  S3Bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName:
+        Fn::Sub:
+          - "${AWS::AccountId}-${AWS::Region}-bucket-${RandomString}"
+          - RandomString:
+              Fn::Select:
+                - 4
+                - !Split ["-", !Ref "AWS::StackId"]
+
+  BucketPolicy:
+    Type: "AWS::S3::BucketPolicy"
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipalReadOnly
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "arn:aws:s3:::${S3Bucket}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn:
+                  !Join [
+                    "",
+                    [
+                      !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/",
+                      !Ref CloudFrontDistribution,
+                    ],
+                  ]
+
+  IAMManagedPolicy:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      ManagedPolicyName: "AWSLambdaEdgeExecutionRoleCloudFrontFunctions"
+      Path: "/service-role/"
+      PolicyDocument: |
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Action": [
+                        "logs:CreateLogGroup",
+                        "logs:CreateLogStream",
+                        "logs:PutLogEvents"
+                    ],
+                    "Resource": [
+                        "arn:aws:logs:*:*:*"
+                    ]
+                }
+            ]
+        }
+
+  CloudFrontDistribution:
+    Type: "AWS::CloudFront::Distribution"
+    Properties:
+      DistributionConfig:
+        Origins:
+          - ConnectionAttempts: 3
+            ConnectionTimeout: 10
+            OriginAccessControlId: !GetAtt CloudFrontOriginAccessControl.Id
+            DomainName:
+              !Join [
+                "",
+                [!Ref S3Bucket, !Sub ".s3.${AWS::Region}.amazonaws.com"],
+              ]
+            Id:
+              !Join [
+                "",
+                [!Ref S3Bucket, !Sub ".s3.${AWS::Region}.amazonaws.com"],
+              ]
+            OriginPath: ""
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - "HEAD"
+            - "GET"
+          CachedMethods:
+            - "HEAD"
+            - "GET"
+          Compress: true
+          # CachingOptimized ID
+          CachePolicyId: "658327ea-f89d-4fab-a63d-7e88639e58f6"
+          SmoothStreaming: false
+          TargetOriginId:
+            !Join ["", [!Ref S3Bucket, !Sub ".s3.${AWS::Region}.amazonaws.com"]]
+          ViewerProtocolPolicy: "redirect-to-https"
+        Comment: ""
+        PriceClass: "PriceClass_All"
+        Enabled: true
+        Restrictions:
+          GeoRestriction:
+            RestrictionType: "none"
+        HttpVersion: "http2"
+        DefaultRootObject: "index.html"
+        IPV6Enabled: true
+
+  CloudFrontOriginAccessControl:
+    Type: "AWS::CloudFront::OriginAccessControl"
+    Properties:
+      OriginAccessControlConfig:
+        Name: "OAC-001"
+        OriginAccessControlOriginType: "s3"
+        SigningBehavior: "always"
+        SigningProtocol: "sigv4"
+
+  LambdaFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Description: "Modifies the CloudFront Viewer Response default cache behavior headers."
+      FunctionName: "CloudFrontViewerResponse-DefaultBehavior"
+      Handler: "index.lambda_handler"
+      Architectures:
+        - "x86_64"
+      Code:
+        ZipFile: |
+          import json
+
+          def lambda_handler(event, context):
+              # Get the response object from event
+              response = event['Records'][0]['cf']['response']
+              
+              # Add a custom header to the response
+              response['headers']['x-pluralsight-default-behavior'] = [{
+                  'key': 'X-Pluralsight-Default-Behavior',
+                  'value': 'Check out our customized default Viewer Response header value!'
+              }]
+
+              # Return the modified response
+              return response
+
+      MemorySize: 128
+      Role: !GetAtt IAMRole.Arn
+      Runtime: "python3.11"
+      Timeout: 3
+      TracingConfig:
+        Mode: "PassThrough"
+      EphemeralStorage:
+        Size: 512
+
+  LambdaFunction2:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Description: "Modifies the CloudFront Viewer Response custom cache behavior headers"
+      FunctionName: "CloudFrontViewerResponse-CustomBehavior"
+      Handler: "index.lambda_handler"
+      Architectures:
+        - "x86_64"
+      Code:
+        ZipFile: |
+          import json
+
+
+          def lambda_handler(event, context):
+              # Get the response object from event
+              response = event["Records"][0]["cf"]["response"]
+
+              # Add a custom header to the response
+              response["headers"]["x-pluralsight-custom-behavior"] = [
+                  {
+                      "key": "X-Pluralsight-Custom-Behavior",
+                      "value": "Hello Gurus! This is our custom behavior viewer response header!",
+                  }
+              ]
+
+              # Return the modified response
+              return response
+
+      MemorySize: 128
+      Role: !GetAtt IAMRole.Arn
+      Runtime: "python3.11"
+      Timeout: 3
+      TracingConfig:
+        Mode: "PassThrough"
+      EphemeralStorage:
+        Size: 512
+
+  LambdaVersion:
+    Type: "AWS::Lambda::Version"
+    Properties:
+      Description: "First release."
+      FunctionName: !Ref LambdaFunction
+
+  CustomLambdaVersion:
+    Type: "AWS::Lambda::Version"
+    Properties:
+      Description: "First release."
+      FunctionName: !Ref LambdaFunction2
+
+  IAMRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/service-role/"
+      RoleName: "ModifyCloudFrontResponse-Role"
+      AssumeRolePolicyDocument: '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":["edgelambda.amazonaws.com","lambda.amazonaws.com"]},"Action":"sts:AssumeRole"}]}'
+      MaxSessionDuration: 3600
+      ManagedPolicyArns:
+        - !Ref IAMManagedPolicy
