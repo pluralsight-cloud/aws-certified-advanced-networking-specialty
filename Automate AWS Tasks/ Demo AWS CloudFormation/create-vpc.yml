@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Create a VPC with private and public subnets using parameters"
+
+Parameters:
+  VpcCidr:
+    Description: "CIDR block for the VPC"
+    Type: String
+    Default: "10.0.0.0/16"
+  SubnetMaskSize:
+    Description: The size of the subnet CIDR that you want. (Example> '7' generates /25 ranges.)
+    Type: Number
+    MinValue: 5
+    MaxValue: 9
+    Default: 8
+
+Resources:
+  Vpc:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+
+  PublicSubnet1:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [0, !Cidr [!Ref VpcCidr, 4, !Ref SubnetMaskSize]]
+      MapPublicIpOnLaunch: true
+
+  PublicSubnet2:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [2, !Cidr [!Ref VpcCidr, 4, !Ref SubnetMaskSize]]
+      MapPublicIpOnLaunch: true
+
+  PrivateSubnet1:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [1, !Cidr [!Ref VpcCidr, 4, !Ref SubnetMaskSize]]
+      MapPublicIpOnLaunch: false
+
+  PrivateSubnet2:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [3, !Cidr [!Ref VpcCidr, 4, !Ref SubnetMaskSize]]
+      MapPublicIpOnLaunch: false
+
+Outputs:
+  PrivateSubnetIds:
+    Description: "Private subnet IDs"
+    Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
+
+  PrivateSubnetRanges:
+    Description: "Private subnet CIDR blocks"
+    Value:
+      !Join [
+        ",",
+        [!GetAtt PrivateSubnet1.CidrBlock, !GetAtt PrivateSubnet2.CidrBlock],
+      ]
+
+  PublicSubnetIds:
+    Description: "Public subnet CIDR blocks"
+    Value:
+      !Join [
+        ",",
+        [!GetAtt PublicSubnet1.CidrBlock, !GetAtt PublicSubnet2.CidrBlock],
+      ]
+
+  VpcId:
+    Description: "VPC ID"
+    Value: !Ref Vpc
