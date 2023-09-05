@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Deploys our CloudFront Distribution and S3 bucket. No origin access controls in place.
+Resources:
+  S3Bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName:
+        Fn::Sub:
+          - "${AWS::AccountId}-${AWS::Region}-bucket-${RandomString}"
+          - RandomString:
+              Fn::Select:
+                - 4
+                - !Split ["-", !Ref "AWS::StackId"]
+
+  CloudFrontDistribution:
+    Type: "AWS::CloudFront::Distribution"
+    Properties:
+      DistributionConfig:
+        Origins:
+          - ConnectionAttempts: 3
+            ConnectionTimeout: 10
+            DomainName:
+              !Join [
+                "",
+                [!Ref S3Bucket, !Sub ".s3.${AWS::Region}.amazonaws.com"],
+              ]
+            Id:
+              !Join [
+                "",
+                [!Ref S3Bucket, !Sub ".s3.${AWS::Region}.amazonaws.com"],
+              ]
+            OriginPath: ""
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - "HEAD"
+            - "GET"
+          CachedMethods:
+            - "HEAD"
+            - "GET"
+          Compress: true
+          # CachingOptimized ID
+          CachePolicyId: "658327ea-f89d-4fab-a63d-7e88639e58f6"
+          SmoothStreaming: false
+          TargetOriginId:
+            !Join ["", [!Ref S3Bucket, !Sub ".s3.${AWS::Region}.amazonaws.com"]]
+          ViewerProtocolPolicy: "redirect-to-https"
+        Comment: ""
+        PriceClass: "PriceClass_All"
+        Enabled: true
+        Restrictions:
+          GeoRestriction:
+            RestrictionType: "none"
+        HttpVersion: "http2"
+        DefaultRootObject: "index.html"
+        IPV6Enabled: true
