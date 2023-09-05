@@ -1,5 +1,7 @@
 # Demo VPC Endpoints
 
+> NOTE: These steps are not necessarily in exact order. They are strictly for reference.
+
 ## Bucket Policy Examples
 
 ### Full Public Read Access
